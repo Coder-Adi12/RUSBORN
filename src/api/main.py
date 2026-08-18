@@ -1,13 +1,37 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import appointments, knowledge, webhooks
+from api.routers import appointments, campaigns, dashboard, knowledge, webhooks
 from db.client import get_supabase_client
+from services.campaign_orchestrator import campaign_orchestrator_loop
 
-app = FastAPI(title="Rusborn Voice Agent API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: spawn campaign orchestrator loop
+    orchestrator_task = asyncio.create_task(campaign_orchestrator_loop())
+    yield
+    # Shutdown: cancel task
+    orchestrator_task.cancel()
+
+app = FastAPI(title="Rusborn Voice Agent API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(appointments.router)
 app.include_router(webhooks.router)
 app.include_router(knowledge.router)
+app.include_router(dashboard.router)
+app.include_router(campaigns.router)
 
 @app.get("/health")
 async def health_check():

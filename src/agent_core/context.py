@@ -33,6 +33,10 @@ class CallContext:
     customer_phone: Optional[str] = None
     company: Optional[str] = None
     description: Optional[str] = None
+    campaign_objective: Optional[str] = None
+    campaign_instructions: Optional[str] = None
+    campaign_contact_id: Optional[str] = None
+    customer_context: Optional[str] = None
 
     @property
     def has_customer(self) -> bool:
@@ -73,6 +77,10 @@ def build_call_context(job_metadata: Optional[str] = None) -> CallContext:
             ctx.customer_phone = meta.get("customer_phone")
             ctx.company = meta.get("company")
             ctx.description = meta.get("description")
+            ctx.campaign_objective = meta.get("campaign_objective")
+            ctx.campaign_instructions = meta.get("campaign_instructions")
+            ctx.campaign_contact_id = meta.get("campaign_contact_id")
+            ctx.customer_context = meta.get("customer_context")
             logger.info(
                 "CallContext populated from job metadata: "
                 f"customer_id={ctx.customer_id}, direction={ctx.direction}"

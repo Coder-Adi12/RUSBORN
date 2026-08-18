@@ -50,11 +50,20 @@ server = AgentServer(shutdown_process_timeout=60.0)
 @server.rtc_session(agent_name="rusborn-voice-agent", on_session_end=on_session_end)
 async def entrypoint(ctx: JobContext):
     # Build call context from job metadata or dev env vars
-    job_metadata = getattr(ctx, "metadata", None)
+    job_metadata = ctx.job.metadata if hasattr(ctx, "job") and ctx.job else getattr(ctx, "metadata", None)
+    
+    logger.info(
+        "AGENT_JOB_RECEIVED\n"
+        f"room={ctx.room.name}\n"
+        f"metadata={job_metadata}"
+    )
+    
     call_context = build_call_context(job_metadata)
 
     room_name = ctx.room.name
     started_at_str = datetime.utcnow().isoformat()
+
+    logger.info("AGENT_SESSION_STARTED")
 
     # Check for missing customer context
     if not call_context.has_customer:

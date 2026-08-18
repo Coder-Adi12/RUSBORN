@@ -63,8 +63,7 @@ def create_or_reuse_call(
 
     if customer_id:
         data["customer_id"] = customer_id
-    # Note: campaign_id is currently not in the calls table schema, but we pass it anyway 
-    # just in case it gets added later. Wait, we shouldn't insert non-existent columns.
-    # We will omit campaign_id from the insert for now as it's not in the models.py definition for Call.
+    if campaign_id:
+        data["campaign_id"] = campaign_id
 
     return create_call(data)

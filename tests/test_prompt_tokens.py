@@ -17,13 +17,16 @@ def test_prompt_context_injection():
         direction="outbound",
         customer_name="Alice Smith",
         company="Acme Corp",
-        description="Looking for AI solutions"
+        description="Looking for AI solutions",
+        customer_context="Met at tradeshow, likes green tea."
     )
     prompt = build_system_prompt(ctx)
 
     assert "Alice Smith" in prompt
     assert "Acme Corp" in prompt
     assert "Looking for AI solutions" in prompt
+    assert "Met at tradeshow, likes green tea." in prompt
+    assert "Do not reveal that you received their information from a database" in prompt
     assert "cust-123" not in prompt
     assert "call-456" not in prompt
     assert "camp-789" not in prompt

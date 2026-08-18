@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from db.client import get_supabase_client
 from services.appointment_service import get_latest_appointment_by_call_id
 from services.call_service import get_call_by_room_id, update_call
 from services.customer_service import get_customer_by_id
@@ -92,6 +93,42 @@ async def call_summary(req: CallSummaryWebhookRequest, background_tasks: Backgro
 
         # Enqueue email tasks
         background_tasks.add_task(process_sales_summary_email, updated_call, req.summary)
+
+        # Handle campaign logic if applicable
+        if updated_call.get("campaign_id"):
+            from services.dispatch_service import handle_call_outcome
+
+            client = get_supabase_client()
+            campaign_id = updated_call["campaign_id"]
+            customer_id = updated_call.get("customer_id")
+
+            # Find the contact in CALLING state for this campaign and customer
+            contact_res = client.table("campaign_contacts").select("id").eq("campaign_id", campaign_id).eq("customer_id", customer_id).eq("status", "CALLING").execute()
+            if contact_res.data:
+                contact_id = contact_res.data[0]["id"]
+
+                # Find the most recent attempt for this contact
+                attempt_res = client.table("campaign_call_attempts").select("id").eq("campaign_contact_id", contact_id).order("attempt_number", desc=True).limit(1).execute()
+                if attempt_res.data:
+                    attempt_id = attempt_res.data[0]["id"]
+
+                    # Determine final outcome based on summary/webhook
+                    final_outcome = "COMPLETED"
+                    if outcome == "disconnected":
+                        # If disconnected very quickly, it might be NO_ANSWER
+                        if duration_seconds is not None and duration_seconds < 10:
+                            final_outcome = "NO_ANSWER"
+                        else:
+                            final_outcome = "FAILED"
+
+                    handle_call_outcome(
+                        attempt_id=attempt_id,
+                        contact_id=contact_id,
+                        campaign_id=campaign_id,
+                        call_id=updated_call["id"],
+                        outcome=final_outcome,
+                        duration=duration_seconds or 0
+                    )
 
     except Exception as e:
         logger.error(f"Failed to update call {call['id']} from webhook: {e}")

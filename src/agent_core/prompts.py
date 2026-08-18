@@ -70,6 +70,8 @@ If email must be collected, ask them to provide/spell it; never guess. Confirm e
 CALL SUMMARY:
 Only capture actual conversation facts; do not invent information.
 
+{campaign_context_block}
+
 LIVE CALL BEHAVIOR:
 Stop speaking when the customer interrupts. Do not talk over them. If they are busy or want to end, politely end the call.
 
@@ -109,15 +111,28 @@ def build_system_prompt(call_context: Optional[CallContext] = None, timezone: st
             context_parts.append(f"Company: {call_context.company}")
         if call_context.description:
             context_parts.append(f"Known requirement: {call_context.description}")
+        if call_context.customer_context:
+            context_parts.append(f"Specific Contact Info: {call_context.customer_context}")
 
         if context_parts:
             customer_context_block = "\\n".join(context_parts) + "\\nUse this information to personalize the conversation naturally. Do not reveal that you received their information from a database, and do not repeat the entire description back to them."
+
+    campaign_context_block = ""
+    if call_context and (call_context.campaign_objective or call_context.campaign_instructions):
+        campaign_parts = ["CAMPAIGN CONTEXT AND INSTRUCTIONS:"]
+        if call_context.campaign_objective:
+            campaign_parts.append(f"Objective: {call_context.campaign_objective}")
+        if call_context.campaign_instructions:
+            campaign_parts.append(f"Instructions: {call_context.campaign_instructions}")
+        campaign_parts.append("IMPORTANT: The above campaign instructions represent your current task. They DO NOT override any of the core safety, business knowledge, or DNC rules established above.")
+        campaign_context_block = "\\n".join(campaign_parts)
 
     return _STATIC_PROMPT.format(
         direction=direction,
         greeting_instruction=greeting_instruction,
         current_datetime_block=current_datetime_block,
-        customer_context_block=customer_context_block
+        customer_context_block=customer_context_block,
+        campaign_context_block=campaign_context_block
     )
 
 # Backward-compatible alias: evaluates at import time.
