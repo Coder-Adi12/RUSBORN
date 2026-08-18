@@ -12,6 +12,8 @@ class Settings:
     livekit_api_key: str
     livekit_api_secret: str
     backend_url: str
+    backend_host: str
+    backend_port: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -19,7 +21,7 @@ class Settings:
             "LIVEKIT_URL": os.getenv("LIVEKIT_URL"),
             "LIVEKIT_API_KEY": os.getenv("LIVEKIT_API_KEY"),
             "LIVEKIT_API_SECRET": os.getenv("LIVEKIT_API_SECRET"),
-            "BACKEND_URL": os.getenv("BACKEND_URL"),
+            "BACKEND_URL": os.getenv("BACKEND_URL", "http://127.0.0.1:8000"),
         }
 
         missing = [key for key, value in required.items() if not value]
@@ -34,6 +36,8 @@ class Settings:
             livekit_api_key=required["LIVEKIT_API_KEY"],
             livekit_api_secret=required["LIVEKIT_API_SECRET"],
             backend_url=required["BACKEND_URL"].rstrip("/"),
+            backend_host=os.getenv("BACKEND_HOST", "127.0.0.1"),
+            backend_port=int(os.getenv("BACKEND_PORT", "8000")),
         )
 
 
