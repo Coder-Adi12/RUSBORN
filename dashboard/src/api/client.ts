@@ -1,5 +1,5 @@
-const API_BASE = '/api/v1/dashboard';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = `${API_BASE_URL}/api/v1/dashboard`;
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -200,7 +200,7 @@ export const api = {
   getHealth: () => fetchApi<SystemHealth>('/health'),
 };
 
-const CAMPAIGN_API_BASE = '/api/v1/campaigns';
+const CAMPAIGN_API_BASE = `${API_BASE_URL}/api/v1/campaigns`;
 async function fetchCampaignsApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${CAMPAIGN_API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
