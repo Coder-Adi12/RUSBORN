@@ -58,6 +58,8 @@ export interface Appointment {
   timezone: string;
   status: string;
   meeting_details: string | null;
+  cancellation_reason?: string | null;
+  reschedule_reason?: string | null;
   created_at: string;
   updated_at: string | null;
   customers?: { id: string; name: string; company: string | null; email: string | null; phone: string | null } | null;

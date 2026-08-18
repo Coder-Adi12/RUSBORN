@@ -51,14 +51,14 @@ class Settings:
             )
 
         return cls(
-            livekit_url=required["LIVEKIT_URL"],
-            livekit_api_key=required["LIVEKIT_API_KEY"],
-            livekit_api_secret=required["LIVEKIT_API_SECRET"],
-            backend_url=required["BACKEND_URL"].rstrip("/"),
-            backend_host=os.getenv("BACKEND_HOST", "127.0.0.1"),
+            livekit_url=required["LIVEKIT_URL"].strip(),
+            livekit_api_key=required["LIVEKIT_API_KEY"].strip(),
+            livekit_api_secret=required["LIVEKIT_API_SECRET"].strip(),
+            backend_url=required["BACKEND_URL"].strip().rstrip("/"),
+            backend_host=os.getenv("BACKEND_HOST", "127.0.0.1").strip(),
             backend_port=int(os.getenv("BACKEND_PORT", "8000")),
-            supabase_url=required["SUPABASE_URL"],
-            supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"],
+            supabase_url=required["SUPABASE_URL"].strip(),
+            supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"].strip(),
             appointment_timezone=os.getenv("APPOINTMENT_TIMEZONE", "Asia/Kolkata"),
             appointment_duration_minutes=int(os.getenv("APPOINTMENT_DURATION_MINUTES", "30")),
             appointment_working_days=os.getenv("APPOINTMENT_WORKING_DAYS", "1,2,3,4,5"),

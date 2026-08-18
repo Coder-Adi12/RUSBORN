@@ -53,7 +53,7 @@ export default function Analytics() {
                   const max = Math.max(...data.calls_by_day.map(x => x.total), 1)
                   const height = `${(d.total / max) * 100}%`
                   return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 2, position: 'relative', group: 'bar' }} title={`${d.date}: ${d.total} calls`}>
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 2, position: 'relative' }} title={`${d.date}: ${d.total} calls`}>
                       <div style={{ background: 'var(--accent-primary)', height, width: '100%', borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
                     </div>
                   )

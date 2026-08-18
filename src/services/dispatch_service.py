@@ -34,9 +34,11 @@ async def dispatch_campaign_call(campaign: dict, contact: dict, customer: dict, 
             logger.error(f"Failed to update DNC status for contact {contact['id']}: {e!s}")
         return False
 
-    url = os.getenv("LIVEKIT_URL")
-    api_key = os.getenv("LIVEKIT_API_KEY")
-    api_secret = os.getenv("LIVEKIT_API_SECRET")
+    from config import settings
+
+    url = settings.livekit_url
+    api_key = settings.livekit_api_key
+    api_secret = settings.livekit_api_secret
 
     if not all([url, api_key, api_secret]):
         logger.error("LiveKit credentials are not fully configured.")
