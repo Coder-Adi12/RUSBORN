@@ -20,7 +20,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest", "pytest-asyncio", "ruff"]
+dev = [
+    "httpx>=0.28.1",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

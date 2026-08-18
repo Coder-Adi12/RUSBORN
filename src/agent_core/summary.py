@@ -6,7 +6,6 @@ import aiohttp
 from livekit.agents import (
     ChatContext,
     JobContext,
-    ToolError,
     inference,
     utils,
 )
@@ -91,6 +90,9 @@ Never claim that an email was sent, an appointment was booked, or a customer agr
 
 
 async def on_session_end(ctx: JobContext) -> None:
+    room_name = ctx.room.name
+    logger.info(f"CALL SESSION END: room_id={room_name}")
+
     ended_at = datetime.now(UTC)
     session = ctx._primary_agent_session
     if not session:
@@ -98,15 +100,22 @@ async def on_session_end(ctx: JobContext) -> None:
         return
 
     report = ctx.make_session_report()
-    summarizer = inference.LLM(model="google/gemini-3.5-flash-lite")
-    summary = await summarize_session(summarizer, report.chat_history)
-    # Still POST even when summary is empty — results and timing data are
-    # useful to downstream consumers regardless of whether summarization
-    # succeeded. Mirrors preview-agent-backend's tools.py:411-441 behavior.
+
+    logger.info("generating call summary")
+    summary = None
+    try:
+        summarizer = inference.LLM(model="google/gemini-3.5-flash-lite")
+        summary = await summarize_session(summarizer, report.chat_history)
+    except Exception as e:
+        logger.error(f"Failed to generate summary: {e}")
+
+    logger.info("posting call summary")
+    logger.info(f"summary webhook room_name={room_name}")
+
     headers_dict = {}
     body = {
         "job_id": report.job_id,
-        "room_id": report.room_id,
+        "room_id": room_name,  # Use actual LiveKit room name, not RM_xxx SID
         "room": report.room,
         "started_at": datetime.fromtimestamp(report.started_at, UTC).isoformat().replace("+00:00", "Z")
             if report.started_at
@@ -115,16 +124,17 @@ async def on_session_end(ctx: JobContext) -> None:
         "summary": summary,
     }
 
+    url = f"{settings.backend_url}/api/v1/webhooks/livekit/call-summary"
+    logger.info(f"POST {url}")
     try:
-        session = utils.http_context.http_session()
+        http_session = utils.http_context.http_session()
         timeout = aiohttp.ClientTimeout(total=10)
-        resp = await asyncio.shield(session.post(
-            f"{settings.backend_url}/api/v1/webhooks/livekit/call-summary", timeout=timeout, json=body, headers=headers_dict
+        resp = await asyncio.shield(http_session.post(
+            url, timeout=timeout, json=body, headers=headers_dict
         ))
+        logger.info(f"response={resp.status}")
         if resp.status >= 400:
-            raise ToolError(f"error: HTTP {resp.status}: {resp.reason}")
+            logger.error(f"Webhook failed with status {resp.status}: {resp.reason}")
         await resp.release()
-    except ToolError:
-        raise
-    except (TimeoutError, aiohttp.ClientError) as e:
-        raise ToolError(f"error: {e!s}") from e
+    except Exception as e:
+        logger.error(f"Webhook HTTP request failed: {e}")

@@ -39,14 +39,24 @@ class Appointment(BaseModel):
     timezone: str
     status: str
     meeting_details: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    rescheduled_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+    reschedule_reason: Optional[str] = None
+    previous_appointment_date: Optional[str] = None
+    previous_start_time: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
 class KnowledgeBase(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     category: str
     title: str
     content: str
-    active: bool = True
+    keywords: Optional[str] = None
+    access_level: str = "PUBLIC"
+    source_document: Optional[str] = None
+    source_page: Optional[str] = None
+    is_active: bool = True
+    priority: int = 100
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

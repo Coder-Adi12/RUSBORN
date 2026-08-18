@@ -1,8 +1,13 @@
 from fastapi import FastAPI, HTTPException
 
+from api.routers import appointments, knowledge, webhooks
 from db.client import get_supabase_client
 
 app = FastAPI(title="Rusborn Voice Agent API")
+
+app.include_router(appointments.router)
+app.include_router(webhooks.router)
+app.include_router(knowledge.router)
 
 @app.get("/health")
 async def health_check():
