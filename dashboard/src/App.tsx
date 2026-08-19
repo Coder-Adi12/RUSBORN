@@ -15,6 +15,7 @@ import Settings from './pages/Settings'
 import Campaigns from './pages/Campaigns'
 import CampaignCreate from './pages/CampaignCreate'
 import CampaignDetail from './pages/CampaignDetail'
+import Login from './pages/Login'
 
 type NavItem = { path: string; label: string; icon: string; comingSoon?: boolean }
 
@@ -31,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/settings', label: 'Settings', icon: '⚙' },
 ]
 
-export default function App() {
+function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
 
@@ -103,5 +104,14 @@ export default function App() {
         </Routes>
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/*" element={<DashboardLayout />} />
+    </Routes>
   )
 }

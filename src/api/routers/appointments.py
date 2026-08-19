@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from pydantic import UUID4, BaseModel, field_validator
 
+from api.auth import require_internal_secret
 from services.appointment_service import (
     book_appointment,
     cancel_appointment,
@@ -19,7 +20,11 @@ from services.email_service import send_customer_confirmation
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/appointments", tags=["appointments"])
+router = APIRouter(
+    prefix="/api/v1/appointments",
+    tags=["appointments"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 def process_booking_email(appointment_id: str, customer_id: str) -> None:
     try:

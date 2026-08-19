@@ -16,7 +16,7 @@ os.environ["LIVEKIT_API_SECRET"] = "dummy"
 os.environ["SUPABASE_URL"] = "dummy"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "dummy"
 
-client = TestClient(app)
+client = TestClient(app, headers={"X-Internal-Secret": "test-internal-api-secret"})
 
 # Helper to generate a valid date in the future
 dt = datetime.today() + timedelta(days=2)

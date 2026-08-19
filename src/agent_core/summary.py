@@ -112,7 +112,9 @@ async def on_session_end(ctx: JobContext) -> None:
     logger.info("posting call summary")
     logger.info(f"summary webhook room_name={room_name}")
 
-    headers_dict = {}
+    headers_dict = {
+        "X-Internal-Secret": settings.internal_api_secret
+    }
     body = {
         "job_id": report.job_id,
         "room_id": room_name,  # Use actual LiveKit room name, not RM_xxx SID

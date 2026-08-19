@@ -31,3 +31,10 @@ KMS
 
 # GitHub CLI
 .github/personal-instructions.md
+
+# Build artifacts
+livekit_agent.egg-info/
+dashboard/dist/
+
+# Supabase temp
+supabase/.temp/

@@ -1,10 +1,14 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const API_BASE = `${API_BASE_URL}/api/v1/dashboard`;
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...options,
   });
+  if (res.status === 401 && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
@@ -198,14 +202,37 @@ export const api = {
   getAnalytics: (days = 30) => fetchApi<AnalyticsData>(`/analytics?days=${days}`),
 
   getHealth: () => fetchApi<SystemHealth>('/health'),
+
+  login: async (credentials: Record<string, string>) => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Login failed');
+    return res.json();
+  },
+
+  logout: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (res.ok) window.location.href = '/login';
+  },
 };
 
 const CAMPAIGN_API_BASE = `${API_BASE_URL}/api/v1/campaigns`;
 async function fetchCampaignsApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${CAMPAIGN_API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...options,
   });
+  if (res.status === 401 && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }

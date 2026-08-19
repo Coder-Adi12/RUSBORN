@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
 from db.client import get_supabase_client
@@ -53,7 +53,7 @@ def get_campaign(campaign_id: str) -> Optional[Dict[str, Any]]:
 def update_campaign(campaign_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     try:
         client = get_supabase_client()
-        data["updated_at"] = datetime.utcnow().isoformat()
+        data["updated_at"] = datetime.now(UTC).isoformat()
         response = client.table("campaigns").update(data).eq("id", campaign_id).execute()
         return response.data[0] if response.data else None
     except Exception as e:
@@ -162,7 +162,7 @@ def start_campaign(campaign_id: str) -> bool:
 
         update_campaign(campaign_id, {
             "status": "RUNNING",
-            "started_at": datetime.utcnow().isoformat() if not campaign.get("started_at") else campaign["started_at"]
+            "started_at": datetime.now(UTC).isoformat() if not campaign.get("started_at") else campaign["started_at"]
         })
         log_campaign_activity(campaign_id, "CAMPAIGN_STARTED", "Campaign is now RUNNING.")
         return True
@@ -172,7 +172,7 @@ def start_campaign(campaign_id: str) -> bool:
 
 def pause_campaign(campaign_id: str) -> bool:
     try:
-        update_campaign(campaign_id, {"status": "PAUSED", "paused_at": datetime.utcnow().isoformat()})
+        update_campaign(campaign_id, {"status": "PAUSED", "paused_at": datetime.now(UTC).isoformat()})
         log_campaign_activity(campaign_id, "CAMPAIGN_PAUSED", "Campaign PAUSED.")
         return True
     except Exception:
@@ -180,7 +180,7 @@ def pause_campaign(campaign_id: str) -> bool:
 
 def stop_campaign(campaign_id: str) -> bool:
     try:
-        update_campaign(campaign_id, {"status": "STOPPED", "stopped_at": datetime.utcnow().isoformat()})
+        update_campaign(campaign_id, {"status": "STOPPED", "stopped_at": datetime.now(UTC).isoformat()})
         log_campaign_activity(campaign_id, "CAMPAIGN_STOPPED", "Campaign STOPPED.")
         return True
     except Exception:

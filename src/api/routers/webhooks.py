@@ -2,10 +2,11 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from api.auth import require_internal_secret
 from db.client import get_supabase_client
 from services.appointment_service import get_latest_appointment_by_call_id
 from services.call_service import get_call_by_room_id, update_call
@@ -14,7 +15,11 @@ from services.email_service import send_sales_summary
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/webhooks/livekit", tags=["webhooks"])
+router = APIRouter(
+    prefix="/api/v1/webhooks/livekit",
+    tags=["webhooks"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 def process_sales_summary_email(call: dict[str, Any], summary: Optional[str]) -> None:
     try:
@@ -27,8 +32,6 @@ def process_sales_summary_email(call: dict[str, Any], summary: Optional[str]) ->
         send_sales_summary(call, customer, appointment, summary)
     except Exception as e:
         logger.error(f"Failed to process sales summary email: {e}")
-
-router = APIRouter(prefix="/api/v1/webhooks/livekit", tags=["webhooks"])
 
 class CallSummaryWebhookRequest(BaseModel):
     job_id: str

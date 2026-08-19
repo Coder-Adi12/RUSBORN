@@ -1,8 +1,13 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+def _now_utc() -> datetime:
+    return datetime.now(UTC)
+
 
 
 class Customer(BaseModel):
@@ -13,8 +18,8 @@ class Customer(BaseModel):
     company: Optional[str] = None
     description: Optional[str] = None
     do_not_call: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 
 class Call(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -29,7 +34,7 @@ class Call(BaseModel):
     transcript: Optional[str] = None
     summary: Optional[str] = None
     outcome: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
 class Appointment(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -47,8 +52,8 @@ class Appointment(BaseModel):
     reschedule_reason: Optional[str] = None
     previous_appointment_date: Optional[str] = None
     previous_start_time: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 class KnowledgeBase(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     category: str
@@ -60,8 +65,8 @@ class KnowledgeBase(BaseModel):
     source_page: Optional[str] = None
     is_active: bool = True
     priority: int = 100
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 
 class Campaign(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -78,8 +83,8 @@ class Campaign(BaseModel):
     paused_at: Optional[datetime] = None
     stopped_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 
 class CampaignContact(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -94,8 +99,8 @@ class CampaignContact(BaseModel):
     completed_at: Optional[datetime] = None
     last_outcome: Optional[str] = None
     last_error: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 
 class CampaignCallAttempt(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -108,7 +113,7 @@ class CampaignCallAttempt(BaseModel):
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     error_message: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
 class CampaignActivity(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -118,4 +123,4 @@ class CampaignActivity(BaseModel):
     campaign_contact_id: Optional[UUID] = None
     campaign_call_attempt_id: Optional[UUID] = None
     metadata: Optional[dict] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)

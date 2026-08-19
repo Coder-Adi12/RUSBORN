@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
+    "itsdangerous>=2.2.0",
     "livekit-agents>=1.6.9,<2",
     "livekit-plugins-ai-coustics~=0.2",
     "livekit-plugins-noise-cancellation~=0.2",

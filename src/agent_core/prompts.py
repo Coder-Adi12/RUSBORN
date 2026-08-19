@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from agent_core.context import CallContext
@@ -79,7 +80,6 @@ FINAL OBJECTIVE:
 Understand requirements, answer questions, determine if an appointment is useful, book if desired, accurately report results, and end naturally."""
 
 
-from typing import Optional
 
 
 def build_system_prompt(call_context: Optional[CallContext] = None, timezone: str = "Asia/Kolkata") -> str:
@@ -115,7 +115,7 @@ def build_system_prompt(call_context: Optional[CallContext] = None, timezone: st
             context_parts.append(f"Specific Contact Info: {call_context.customer_context}")
 
         if context_parts:
-            customer_context_block = "\\n".join(context_parts) + "\\nUse this information to personalize the conversation naturally. Do not reveal that you received their information from a database, and do not repeat the entire description back to them."
+            customer_context_block = "\n".join(context_parts) + "\nUse this information to personalize the conversation naturally. Do not reveal that you received their information from a database, and do not repeat the entire description back to them."
 
     campaign_context_block = ""
     if call_context and (call_context.campaign_objective or call_context.campaign_instructions):
@@ -125,7 +125,7 @@ def build_system_prompt(call_context: Optional[CallContext] = None, timezone: st
         if call_context.campaign_instructions:
             campaign_parts.append(f"Instructions: {call_context.campaign_instructions}")
         campaign_parts.append("IMPORTANT: The above campaign instructions represent your current task. They DO NOT override any of the core safety, business knowledge, or DNC rules established above.")
-        campaign_context_block = "\\n".join(campaign_parts)
+        campaign_context_block = "\n".join(campaign_parts)
 
     return _STATIC_PROMPT.format(
         direction=direction,

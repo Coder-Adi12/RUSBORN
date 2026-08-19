@@ -19,6 +19,18 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
+# Global session to optimize latency (reuse TLS connections)
+_http_session: Optional[aiohttp.ClientSession] = None
+
+def _get_http_session() -> aiohttp.ClientSession:
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        _http_session = aiohttp.ClientSession(
+            headers={"X-Internal-Secret": settings.internal_api_secret}
+        )
+    return _http_session
+
+
 class AppointmentTools(llm.Toolset):
     def __init__(self, call_context: CallContext):
         super().__init__(id="appointments")
@@ -34,28 +46,28 @@ class AppointmentTools(llm.Toolset):
         start_time = time.monotonic()
         logger.info(f"[TOOL] {endpoint} request start")
         try:
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.backend_url}/api/v1/appointments{endpoint}"
-                async with session.post(
-                    url, json=payload, timeout=10.0
-                ) as response:
-                    response_start = time.monotonic()
-                    logger.info(f"[TOOL] {endpoint} backend response start (latency: {response_start - start_time:.3f}s)")
-                    if response.status >= 500:
-                        return {
-                            "success": False,
-                            "error": "internal_server_error",
-                        }
-                    text = await response.text()
-                    response_complete = time.monotonic()
-                    logger.info(f"[TOOL] {endpoint} backend response complete (total duration: {response_complete - start_time:.3f}s)")
-                    try:
-                        return json.loads(text)
-                    except json.JSONDecodeError:
-                        return {
-                            "success": False,
-                            "error": "invalid_response",
-                        }
+            session = _get_http_session()
+            url = f"{self.backend_url}/api/v1/appointments{endpoint}"
+            async with session.post(
+                url, json=payload, timeout=10.0
+            ) as response:
+                response_start = time.monotonic()
+                logger.info(f"[TOOL] {endpoint} backend response start (latency: {response_start - start_time:.3f}s)")
+                if response.status >= 500:
+                    return {
+                        "success": False,
+                        "error": "internal_server_error",
+                    }
+                text = await response.text()
+                response_complete = time.monotonic()
+                logger.info(f"[TOOL] {endpoint} backend response complete (total duration: {response_complete - start_time:.3f}s)")
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    return {
+                        "success": False,
+                        "error": "invalid_response",
+                    }
         except Exception as e:
             logger.error(f"Error calling {endpoint}: {e}")
             return {"success": False, "error": "network_error"}
@@ -227,26 +239,26 @@ times like '3 PM' to '15:00'.
         try:
             start_time = time.monotonic()
             logger.info(f"[TOOL] search_knowledge request start (query: {query})")
-            # We hit the FastAPI endpoint for consistency, or just call the service directly.
-            # Since the tools are running in a separate process, hitting the local endpoint is consistent with appointments.
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.backend_url}/api/v1/knowledge/search"
-                params = {"q": query}
-                async with session.get(url, params=params, timeout=10.0) as response:
-                    response_start = time.monotonic()
-                    logger.info(f"[TOOL] search_knowledge backend response start (latency: {response_start - start_time:.3f}s)")
-                    if response.status >= 500:
-                        return json.dumps({"success": False, "error": "internal_server_error"})
-                    text = await response.text()
-                    response_complete = time.monotonic()
-                    logger.info(f"[TOOL] search_knowledge backend response complete (total duration: {response_complete - start_time:.3f}s)")
-                    try:
-                        data = json.loads(text)
-                        if not data:
-                            return json.dumps({"results": [], "message": "No relevant information found."})
-                        return json.dumps({"results": data})
-                    except json.JSONDecodeError:
-                        return json.dumps({"success": False, "error": "invalid_response"})
+            # We hit the FastAPI endpoint for consistency.
+            # Using the shared session for latency optimization and auth header.
+            session = _get_http_session()
+            url = f"{self.backend_url}/api/v1/knowledge/search"
+            params = {"q": query}
+            async with session.get(url, params=params, timeout=10.0) as response:
+                response_start = time.monotonic()
+                logger.info(f"[TOOL] search_knowledge backend response start (latency: {response_start - start_time:.3f}s)")
+                if response.status >= 500:
+                    return json.dumps({"success": False, "error": "internal_server_error"})
+                text = await response.text()
+                response_complete = time.monotonic()
+                logger.info(f"[TOOL] search_knowledge backend response complete (total duration: {response_complete - start_time:.3f}s)")
+                try:
+                    data = json.loads(text)
+                    if not data:
+                        return json.dumps({"results": [], "message": "No relevant information found."})
+                    return json.dumps({"results": data})
+                except json.JSONDecodeError:
+                    return json.dumps({"success": False, "error": "invalid_response"})
         except Exception as e:
             logger.error(f"Error calling knowledge search: {e}")
             return json.dumps({"success": False, "error": "network_error"})

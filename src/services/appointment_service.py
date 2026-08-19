@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -225,8 +225,8 @@ def cancel_appointment(
     # Update status to cancelled
     update_data = {
         "status": "cancelled",
-        "cancelled_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat()
+        "cancelled_at": datetime.now(UTC).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat()
     }
     if reason:
         update_data["cancellation_reason"] = reason
@@ -282,10 +282,10 @@ def reschedule_appointment(
         "end_time": avail["end_time"],
         "timezone": timezone_str,
         "status": "rescheduled",
-        "rescheduled_at": datetime.utcnow().isoformat(),
+        "rescheduled_at": datetime.now(UTC).isoformat(),
         "previous_appointment_date": appt["appointment_date"],
         "previous_start_time": appt["start_time"],
-        "updated_at": datetime.utcnow().isoformat()
+        "updated_at": datetime.now(UTC).isoformat()
     }
     if reason:
         update_data["reschedule_reason"] = reason

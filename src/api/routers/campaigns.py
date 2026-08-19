@@ -1,9 +1,10 @@
 import json
 from typing import List
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from api.auth import require_dashboard_session
 from services.audience_service import (
     get_audience,
     parse_csv_preview,
@@ -25,7 +26,11 @@ from services.campaign_service import (
     validate_campaign,
 )
 
-router = APIRouter(prefix="/api/v1/campaigns", tags=["campaigns"])
+router = APIRouter(
+    prefix="/api/v1/campaigns",
+    tags=["campaigns"],
+    dependencies=[Depends(require_dashboard_session)],
+)
 
 class CampaignCreateRequest(BaseModel):
     name: str

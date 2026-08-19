@@ -3,9 +3,10 @@
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from api.auth import require_dashboard_session
 from services.dashboard_service import (
     create_knowledge_record,
     get_analytics,
@@ -25,7 +26,11 @@ from services.dashboard_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+router = APIRouter(
+    prefix="/api/v1/dashboard",
+    tags=["dashboard"],
+    dependencies=[Depends(require_dashboard_session)],
+)
 
 
 # ── KPI Stats ──────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ It does NOT modify any existing business logic or data.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Optional
 
 from db.client import get_supabase_client
@@ -475,7 +475,7 @@ def update_knowledge_record(
     """Update an existing knowledge base record."""
     try:
         client = get_supabase_client()
-        data["updated_at"] = datetime.utcnow().isoformat()
+        data["updated_at"] = datetime.now(UTC).isoformat()
         result = client.table("knowledge_base").update(data).eq(
             "id", record_id
         ).execute()

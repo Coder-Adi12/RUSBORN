@@ -1,10 +1,15 @@
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from api.auth import require_internal_secret
 from services.knowledge_service import search_knowledge
 
-router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
+router = APIRouter(
+    prefix="/api/v1/knowledge",
+    tags=["knowledge"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 @router.get("/search", response_model=list[dict[str, Any]])
 async def search_knowledge_endpoint(

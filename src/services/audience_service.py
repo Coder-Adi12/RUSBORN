@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from db.client import get_supabase_client
+from services.customer_service import upsert_customer_by_phone
 
 logger = logging.getLogger(__name__)
 
@@ -117,28 +118,14 @@ def process_audience_import(campaign_id: str, file_bytes: bytes, mapping: Dict[s
         description = row.get(mapping.get("description", "")) if mapping.get("description") else None
         context = row.get(mapping.get("context", "")) if mapping.get("context") else None
 
-        # Check if customer exists by phone
-        cust_match = client.table("customers").select("*").eq("phone", phone).execute().data
+        # Create or update customer securely with upsert
+        customer_data = {"phone": phone}
+        if name: customer_data["name"] = name
+        if email: customer_data["email"] = email
+        if company: customer_data["company"] = company
+        if description: customer_data["description"] = description
 
-        if cust_match:
-            customer = cust_match[0]
-            # Update missing info only
-            updates = {}
-            if name and not customer.get("name"): updates["name"] = name
-            if email and not customer.get("email"): updates["email"] = email
-            if company and not customer.get("company"): updates["company"] = company
-            if updates:
-                client.table("customers").update(updates).eq("id", customer["id"]).execute()
-        else:
-            # Create customer
-            new_cust_res = client.table("customers").insert({
-                "phone": phone,
-                "name": name,
-                "email": email,
-                "company": company,
-                "description": description
-            }).execute()
-            customer = new_cust_res.data[0] if new_cust_res.data else None
+        customer = upsert_customer_by_phone(customer_data)
 
         if not customer:
             stats["invalid_phone"] += 1
@@ -174,5 +161,5 @@ def remove_audience_member(campaign_contact_id: str) -> bool:
     try:
         client.table("campaign_contacts").delete().eq("id", campaign_contact_id).execute()
         return True
-    except:
+    except Exception:
         return False

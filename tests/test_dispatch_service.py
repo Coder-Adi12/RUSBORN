@@ -19,7 +19,7 @@ async def test_dispatch_campaign_call_success(mock_env):
     campaign = {"id": "camp123", "objective": "test"}
     contact = {"id": "contact123", "customer_context": "test context", "status": "CALLING"}
     customer = {"id": "cust123", "phone": "+1234567890", "name": "John Doe", "do_not_call": False}
-    attempt = {"id": "attempt123"}
+    attempt = {"id": "attempt123", "attempt_number": 1}
 
     with patch("services.dispatch_service.LiveKitAPI") as MockAPI:
         mock_api_instance = AsyncMock()
@@ -50,7 +50,7 @@ async def test_dispatch_campaign_call_dnc(mock_env):
     campaign = {"id": "camp123"}
     contact = {"id": "contact123", "status": "CALLING"}
     customer = {"id": "cust123", "phone": "+1234567890", "do_not_call": True}
-    attempt = {"id": "attempt123"}
+    attempt = {"id": "attempt123", "attempt_number": 1}
 
     with patch("services.dispatch_service.get_supabase_client") as mock_supabase:
         mock_client = MagicMock()
@@ -70,7 +70,7 @@ async def test_dispatch_campaign_call_missing_env():
     campaign = {"id": "camp123"}
     contact = {"id": "contact123", "status": "CALLING"}
     customer = {"id": "cust123", "phone": "+1234567890", "do_not_call": False}
-    attempt = {"id": "attempt123"}
+    attempt = {"id": "attempt123", "attempt_number": 1}
 
     result = await dispatch_campaign_call(campaign, contact, customer, attempt)
     assert result is False
@@ -80,7 +80,7 @@ async def test_dispatch_campaign_call_agent_dispatch_fails(mock_env):
     campaign = {"id": "camp123"}
     contact = {"id": "contact123", "status": "CALLING"}
     customer = {"id": "cust123", "phone": "+1234567890", "do_not_call": False}
-    attempt = {"id": "attempt123"}
+    attempt = {"id": "attempt123", "attempt_number": 1}
 
     with patch("services.dispatch_service.LiveKitAPI") as MockAPI:
         mock_api_instance = AsyncMock()
@@ -99,7 +99,7 @@ async def test_dispatch_campaign_call_sip_fails(mock_env):
     campaign = {"id": "camp123"}
     contact = {"id": "contact123", "status": "CALLING"}
     customer = {"id": "cust123", "phone": "+1234567890", "do_not_call": False}
-    attempt = {"id": "attempt123"}
+    attempt = {"id": "attempt123", "attempt_number": 1}
 
     with patch("services.dispatch_service.LiveKitAPI") as MockAPI:
         mock_api_instance = AsyncMock()

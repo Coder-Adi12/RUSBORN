@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 
-client = TestClient(app)
+client = TestClient(app, headers={"X-Internal-Secret": "test-internal-api-secret"})
 
 @pytest.fixture
 def mock_supabase():

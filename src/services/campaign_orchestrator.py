@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 async def claim_contact(campaign_id: str) -> dict | None:
     """Atomically claims a PENDING or retryable contact."""
     client = get_supabase_client()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # We want to find a contact that is either PENDING or (FAILED/NO_ANSWER and next_attempt_at <= now)
     # Since Supabase Python client complex OR queries are tricky, we'll fetch a batch of candidates 
@@ -51,6 +51,30 @@ async def claim_contact(campaign_id: str) -> dict | None:
 
     return None
 
+def build_dispatch_failure_update(
+    attempt_number: int,
+    max_attempts: int,
+    retry_delay_minutes: int,
+    now: datetime,
+) -> dict:
+    from datetime import timedelta
+
+    update_data = {
+        "attempt_count": attempt_number,
+        "status": "FAILED",
+        "last_error": "Failed to dispatch SIP call",
+        "last_outcome": "FAILED",
+    }
+
+    if attempt_number < max_attempts:
+        update_data["next_attempt_at"] = (now + timedelta(minutes=retry_delay_minutes)).isoformat()
+    else:
+        update_data["status"] = "EXHAUSTED"
+        update_data["next_attempt_at"] = None
+
+    return update_data
+
+
 async def orchestrate_campaign(campaign: dict):
     client = get_supabase_client()
     campaign_id = campaign["id"]
@@ -68,7 +92,7 @@ async def orchestrate_campaign(campaign: dict):
 
     # Reap stale CALLING contacts (e.g. if service crashed)
     # Assume a call longer than 30 mins is stale
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for active in active_contacts:
         if active.get("last_attempt_at"):
             last_attempt = datetime.fromisoformat(active["last_attempt_at"].replace("Z", "+00:00"))
@@ -121,8 +145,14 @@ async def orchestrate_campaign(campaign: dict):
                     client.table("campaign_contacts").update({"attempt_count": attempt_num}).eq("id", claimed["id"]).execute()
                     log_campaign_activity(campaign_id, "CALL_DISPATCHED", f"Dispatched attempt {attempt_num}", claimed["id"], attempt["id"])
                 else:
-                    # Dispatch failed synchronously
-                    client.table("campaign_contacts").update({"status": "FAILED", "last_error": "Failed to dispatch SIP call"}).eq("id", claimed["id"]).execute()
+                    # Dispatch failed synchronously. Use bounded retries.
+                    update_data = build_dispatch_failure_update(
+                        attempt_number=attempt_num,
+                        max_attempts=campaign.get("max_attempts_per_customer", 1),
+                        retry_delay_minutes=campaign.get("retry_delay_minutes", 30),
+                        now=now,
+                    )
+                    client.table("campaign_contacts").update(update_data).eq("id", claimed["id"]).execute()
                     client.table("campaign_call_attempts").update({"status": "FAILED", "error_message": "Dispatch failed", "ended_at": now.isoformat()}).eq("id", attempt["id"]).execute()
 
     else:
@@ -149,7 +179,7 @@ async def orchestrate_campaign(campaign: dict):
 
         if eligible_remaining == 0 and current_concurrent == 0:
             logger.info(f"Campaign {campaign_id} has exhausted all contacts. Completing.")
-            client.table("campaigns").update({"status": "COMPLETED", "completed_at": datetime.utcnow().isoformat()}).eq("id", campaign_id).execute()
+            client.table("campaigns").update({"status": "COMPLETED", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", campaign_id).execute()
             log_campaign_activity(campaign_id, "CAMPAIGN_COMPLETED", "No remaining eligible contacts.")
 
 async def campaign_orchestrator_loop():

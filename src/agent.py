@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from livekit.agents import (
     Agent,
@@ -51,17 +51,57 @@ server = AgentServer(shutdown_process_timeout=60.0)
 async def entrypoint(ctx: JobContext):
     # Build call context from job metadata or dev env vars
     job_metadata = ctx.job.metadata if hasattr(ctx, "job") and ctx.job else getattr(ctx, "metadata", None)
-    
+
     logger.info(
         "AGENT_JOB_RECEIVED\n"
         f"room={ctx.room.name}\n"
         f"metadata={job_metadata}"
     )
-    
+
     call_context = build_call_context(job_metadata)
 
+    # --- Robust Customer Resolution ---
+    from services.customer_service import get_customer_by_id, upsert_customer_by_phone
+
+    resolved_customer_id = None
+
+    # 1. If we have a phone number (e.g. from campaign metadata or caller ID), upsert for idempotency
+    if call_context.customer_phone:
+        customer_data = {"phone": call_context.customer_phone}
+        if call_context.customer_name: customer_data["name"] = call_context.customer_name
+        if call_context.customer_email: customer_data["email"] = call_context.customer_email
+        if call_context.company: customer_data["company"] = call_context.company
+        if call_context.description: customer_data["description"] = call_context.description
+
+        upserted_cust = upsert_customer_by_phone(customer_data)
+        if upserted_cust:
+            resolved_customer_id = upserted_cust["id"]
+
+    # 2. If no phone, but we have a customer_id (e.g. TEST_CUSTOMER_ID fallback), verify it exists
+    elif call_context.customer_id:
+        existing_cust = get_customer_by_id(call_context.customer_id)
+        if existing_cust:
+            resolved_customer_id = existing_cust["id"]
+        else:
+            logger.warning(f"customer_id {call_context.customer_id} not found in database. Discarding.")
+            
+    # 3. Development Fallback: If we still don't have a customer, create a Sandbox tester dynamically
+    from config import settings
+    if not resolved_customer_id and settings.environment == "development":
+        logger.info("Development mode: No valid customer found. Creating dynamic 'Sandbox Tester'.")
+        test_cust = upsert_customer_by_phone({
+            "phone": "+10000000000",
+            "name": "Sandbox Tester",
+            "email": "sandbox@rusborn.ai"
+        })
+        if test_cust:
+            resolved_customer_id = test_cust["id"]
+
+    call_context.customer_id = resolved_customer_id
+    # ----------------------------------
+
     room_name = ctx.room.name
-    started_at_str = datetime.utcnow().isoformat()
+    started_at_str = datetime.now(UTC).isoformat()
 
     logger.info("AGENT_SESSION_STARTED")
 
@@ -127,8 +167,8 @@ async def entrypoint(ctx: JobContext):
         vad=inference.VAD(),
     )
 
-    @session.on("metrics_collected")
-    def on_metrics_collected(metrics):
+    @session.on("session_usage_updated")
+    def on_session_usage_updated(metrics):
         metrics_type = getattr(metrics, "type", None)
         if metrics_type == "stt_metrics":
             logger.info(f"[TURN LATENCY] STT finalization duration: {getattr(metrics, 'duration', 0):.2f}s")

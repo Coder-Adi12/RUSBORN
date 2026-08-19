@@ -65,7 +65,8 @@ async def dispatch_campaign_call(campaign: dict, contact: dict, customer: dict, 
         }
 
         job_metadata = json.dumps(metadata_dict)
-        room_name = f"campaign-{campaign['id'][:8]}-{contact['id'][:8]}"
+        # Append attempt number to ensure unique room and call record for retries
+        room_name = f"campaign-{campaign['id'][:8]}-{contact['id'][:8]}-{attempt['attempt_number']}"
 
         api = LiveKitAPI(url=url, api_key=api_key, api_secret=api_secret)
 
@@ -117,12 +118,15 @@ def handle_call_outcome(attempt_id: str, contact_id: str, campaign_id: str, call
         campaign = client.table("campaigns").select("max_attempts_per_customer, retry_delay_minutes").eq("id", campaign_id).execute().data[0]
         contact = client.table("campaign_contacts").select("attempt_count").eq("id", contact_id).execute().data[0]
 
+        from datetime import UTC
+        from datetime import datetime as _dt
+
         # Update attempt
         client.table("campaign_call_attempts").update({
             "status": "COMPLETED" if outcome == "COMPLETED" else outcome,
             "outcome": outcome,
             "call_id": call_id,
-            "ended_at": "now()" # postgres function or use isoformat
+            "ended_at": _dt.now(UTC).isoformat(),
         }).eq("id", attempt_id).execute()
 
         if outcome == "COMPLETED":
@@ -134,7 +138,7 @@ def handle_call_outcome(attempt_id: str, contact_id: str, campaign_id: str, call
             # Need retry?
             if contact["attempt_count"] < campaign["max_attempts_per_customer"]:
                 from datetime import datetime, timedelta
-                next_time = datetime.utcnow() + timedelta(minutes=campaign["retry_delay_minutes"])
+                next_time = datetime.now(UTC) + timedelta(minutes=campaign["retry_delay_minutes"])
                 client.table("campaign_contacts").update({
                     "status": outcome, # NO_ANSWER or FAILED
                     "last_outcome": outcome,

@@ -1,6 +1,6 @@
 import logging
 import smtplib
-from datetime import datetime
+from datetime import UTC, datetime
 from email.message import EmailMessage
 from typing import Any, Optional
 
@@ -98,7 +98,7 @@ def _process_email_delivery(
             "last_error": None if success else "SMTP error",
         }
         if success:
-            update_data["sent_at"] = datetime.utcnow().isoformat()
+            update_data["sent_at"] = datetime.now(UTC).isoformat()
 
         client.table("email_deliveries").update(update_data).eq("id", delivery_id).execute()
 

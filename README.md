@@ -25,13 +25,21 @@ A voice AI project built with [LiveKit Agents for Python](https://github.com/liv
 
 2. **Set up your LiveKit credentials:**
 
-   Sign up for [LiveKit Cloud](https://cloud.livekit.io/), then configure your environment. You can either:
+### 2. Configure Environment
 
-   - **Manual setup**: Copy `.env.example` to `.env.local` and fill in:
-     - `LIVEKIT_URL`
-     - `LIVEKIT_API_KEY`
-     - `LIVEKIT_API_SECRET`
-     - any provider API key listed in `.env.example` (realtime models are bring-your-own-key)
+Copy the example environment file and fill in your credentials. The application loads `.env` first, and then `.env.local` as an override.
+
+```bash
+cp .env.example .env.local
+```
+
+Required keys for `.env.local`:
+- `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: From your LiveKit Cloud project settings
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: From your Supabase project settings
+- `INTERNAL_API_SECRET`: A secret string shared between the voice agent and the backend API
+- `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`: Credentials for the operations dashboard
+
+*Note: In development (`ENVIRONMENT=development`), `BACKEND_URL` defaults to `http://127.0.0.1:8000` automatically. In production, you must explicitly set `BACKEND_URL` to your deployed public API URL.*
 
    - **Automatic setup** (recommended): Use the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/):
      ```bash
