@@ -334,7 +334,7 @@ class TestDateResolutionPromptContent:
         prompt, now = self._get_prompt_and_now()
         today_str = now.strftime("%Y-%m-%d")
         assert today_str in prompt
-        assert "tomorrow" in prompt.lower()
+        assert "relative expressions" in prompt.lower()
 
     def test_tomorrow_at_2pm_resolvable(self):
         prompt, now = self._get_prompt_and_now()

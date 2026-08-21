@@ -28,6 +28,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "ruff",
+    "tiktoken>=0.14.0",
 ]
 
 [tool.setuptools.packages.find]
