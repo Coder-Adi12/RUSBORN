@@ -59,6 +59,14 @@ COPY . .
 # Build tools (gcc, g++, python3-dev) are not included in the final image
 FROM base
 
+# The slim base image ships without the system timezone database, but the app
+# resolves IANA zones at runtime via zoneinfo.ZoneInfo (e.g. "Asia/Kolkata" in
+# the agent prompt and appointment slot math). Install tzdata so those lookups
+# succeed instead of raising ZoneInfoNotFoundError.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/build/building/best-practices/#user
 ARG UID=10001

@@ -3,13 +3,53 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from agent_core.context import CallContext
+from config import settings as _config
+
+_DAY_ABBR = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
+
+
+def _format_working_days(days) -> str:
+    """Render working days compactly, e.g. [1,2,3,4,5] -> 'Mon-Fri'."""
+    items = days.split(",") if isinstance(days, str) else list(days)
+    nums = sorted(
+        {
+            int(str(x).strip())
+            for x in items
+            if str(x).strip().lstrip("-").isdigit()
+        }
+    )
+    nums = [n for n in nums if 1 <= n <= 7]
+    if not nums:
+        return "Mon-Fri"
+    if len(nums) > 1 and nums == list(range(nums[0], nums[-1] + 1)):
+        return f"{_DAY_ABBR[nums[0]]}-{_DAY_ABBR[nums[-1]]}"
+    return ", ".join(_DAY_ABBR[n] for n in nums)
+
+
+def _working_hours_block(agent_settings: Optional[dict], timezone: str) -> str:
+    """One-line scheduling window for the agent to speak accurately.
+
+    Values come from the editable agent settings when provided, otherwise from
+    the env-var config defaults. The timezone label always matches the prompt's
+    current-time timezone (the caller keeps them aligned).
+    """
+    a = agent_settings or {}
+    duration = a.get("duration_minutes", _config.appointment_duration_minutes)
+    start = a.get("start_time", _config.appointment_start_time)
+    end = a.get("end_time", _config.appointment_end_time)
+    days = a.get("working_days") or _config.appointment_working_days
+    return (
+        f"in {duration}-minute slots between {start} and {end} "
+        f"{timezone}, {_format_working_days(days)}"
+    )
+
 
 _STATIC_PROMPT = """You are Morgan, the friendly and professional {direction} voice assistant for Rusborn. {greeting_instruction}
 
 Your goal is to have a natural conversation, understand why the customer is interested, answer relevant questions using approved Rusborn knowledge, and guide them toward an appointment when appropriate.
 
 CURRENT DATE AND TIME: {current_datetime_block}
-When interpreting relative dates (e.g. "tomorrow", "next Monday"), strictly use this absolute date. Never use a hardcoded date. All RUSBORN appointments default to Asia/Kolkata timezone unless specified otherwise.
+When interpreting relative dates, strictly use this absolute date; never assume a hardcoded one. Appointments default to {default_timezone} timezone unless the customer specifies otherwise.
 
 CUSTOMER CONTEXT:
 {customer_context_block}
@@ -36,9 +76,7 @@ RUSBORN provides:
 
 When the user asks for a general overview of RUSBORN's services, provide ALL 5 major high-level service categories listed above in one concise response.
 Do not call the knowledge tool unnecessarily for this simple high-level overview because this static company context already contains this information.
-The response should remain conversational and brief.
-Example: "Rusborn works across five main areas: engineering design and product development, CAD and CAE training including compliance-focused skills, research and project mentorship, customized technical training, and corporate fresher training and retention solutions."
-Then ask one relevant follow-up question.
+The response should remain conversational and brief, then ask one relevant follow-up question.
 
 Use search_rusborn_knowledge for detailed factual information.
 Treat retrieved knowledge as the approved source of truth.
@@ -52,7 +90,7 @@ APPOINTMENTS:
 Offer an appointment if they need detailed info, ask to speak with someone, or have complex requirements. Do not push appointments for simple questions.
 Booking rules:
 1. Understand the requirement and ask for a suitable date/time.
-2. Check availability using check_availability tool. Offer only available options.
+2. Rusborn books appointments {working_hours_block}. Offer only times inside this window, and confirm each with the check_availability tool.
 3. Only book after explicit customer confirmation.
 4. Confirm success to the customer only after book_appointment succeeds.
 5. Never reschedule without confirming the new date/time.
@@ -82,8 +120,17 @@ Understand requirements, answer questions, determine if an appointment is useful
 
 
 
-def build_system_prompt(call_context: Optional[CallContext] = None, timezone: str = "Asia/Kolkata") -> str:
-    """Build the system prompt with the current date/time and customer context injected."""
+def build_system_prompt(
+    call_context: Optional[CallContext] = None,
+    timezone: str = "Asia/Kolkata",
+    agent_settings: Optional[dict] = None,
+) -> str:
+    """Build the system prompt with the current date/time and customer context injected.
+
+    agent_settings (optional) is the resolved appointment configuration from
+    agent_settings_service.get_appointment_settings(); when omitted the env-var
+    config defaults are used so this stays importable/testable without a DB.
+    """
     if isinstance(call_context, str):
         # Handle backward compatibility where timezone was passed as first positional arg
         timezone = call_context
@@ -94,6 +141,7 @@ def build_system_prompt(call_context: Optional[CallContext] = None, timezone: st
     current_datetime_block = (
         f"{now.strftime('%A, %Y-%m-%d')} | Time: {now.strftime('%H:%M')} {timezone}"
     )
+    working_hours_block = _working_hours_block(agent_settings, timezone)
 
     direction = "outbound"
     greeting_instruction = "You are making an outbound call to a customer on behalf of Rusborn."
@@ -131,6 +179,8 @@ def build_system_prompt(call_context: Optional[CallContext] = None, timezone: st
         direction=direction,
         greeting_instruction=greeting_instruction,
         current_datetime_block=current_datetime_block,
+        default_timezone=timezone,
+        working_hours_block=working_hours_block,
         customer_context_block=customer_context_block,
         campaign_context_block=campaign_context_block
     )

@@ -79,6 +79,7 @@ async def orchestrate_campaign(campaign: dict):
     client = get_supabase_client()
     campaign_id = campaign["id"]
     max_concurrent = campaign.get("max_concurrent_calls", 1)
+    max_attempts = campaign.get("max_attempts_per_customer", 1)
 
     # Check current active calls
     active_response = client.table("campaign_contacts")\
@@ -155,32 +156,47 @@ async def orchestrate_campaign(campaign: dict):
                     client.table("campaign_contacts").update(update_data).eq("id", claimed["id"]).execute()
                     client.table("campaign_call_attempts").update({"status": "FAILED", "error_message": "Dispatch failed", "ended_at": now.isoformat()}).eq("id", attempt["id"]).execute()
 
-    else:
-        # Check if campaign is totally done
-        response = client.table("campaign_contacts")\
-            .select("id")\
-            .eq("campaign_id", campaign_id)\
-            .in_("status", ["PENDING", "CALLING", "NO_ANSWER", "FAILED"])\
-            .execute()
+    # Evaluate completion on EVERY pass, not only when concurrency is full.
+    # Previously this lived in an `else` branch of `available_slots > 0`, so a
+    # campaign whose last contacts finished while a slot was free would never
+    # be marked COMPLETED and stayed RUNNING forever.
+    _check_and_complete_campaign(client, campaign_id, max_attempts)
 
-        remaining = response.data or []
 
-        # Filter out those that have exhausted retries
-        eligible_remaining = 0
-        if remaining:
-            max_attempts = campaign.get("max_attempts_per_customer", 1)
-            full_remaining = client.table("campaign_contacts").select("status, attempt_count").in_("id", [r["id"] for r in remaining]).execute().data or []
-            for r in full_remaining:
-                if r["status"] == "CALLING" or r["status"] == "PENDING" or r["attempt_count"] < max_attempts:
-                    eligible_remaining += 1
-                else:
-                    # Mark exhausted
-                    client.table("campaign_contacts").update({"status": "EXHAUSTED"}).eq("id", r["id"]).execute()
+def _check_and_complete_campaign(client, campaign_id: str, max_attempts: int) -> None:
+    """Mark a campaign COMPLETED once no eligible contacts and no active calls remain.
 
-        if eligible_remaining == 0 and current_concurrent == 0:
-            logger.info(f"Campaign {campaign_id} has exhausted all contacts. Completing.")
-            client.table("campaigns").update({"status": "COMPLETED", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", campaign_id).execute()
-            log_campaign_activity(campaign_id, "CAMPAIGN_COMPLETED", "No remaining eligible contacts.")
+    Re-reads state fresh from the DB (dispatches earlier in the same pass may
+    have moved contacts to CALLING) and marks retry-exhausted contacts EXHAUSTED.
+    """
+    # id is required below for the EXHAUSTED update; selecting it here fixes a
+    # KeyError that occurred when the projection omitted "id".
+    rows = client.table("campaign_contacts")\
+        .select("id, status, attempt_count")\
+        .eq("campaign_id", campaign_id)\
+        .in_("status", ["PENDING", "CALLING", "NO_ANSWER", "FAILED"])\
+        .execute().data or []
+
+    eligible_remaining = 0
+    active_calling = 0
+    for r in rows:
+        status = r.get("status")
+        attempts = r.get("attempt_count") or 0
+        if status == "CALLING":
+            active_calling += 1
+            eligible_remaining += 1
+        elif status == "PENDING":
+            eligible_remaining += 1
+        elif attempts < max_attempts:
+            eligible_remaining += 1
+        else:
+            # Retry budget spent — retire this contact.
+            client.table("campaign_contacts").update({"status": "EXHAUSTED"}).eq("id", r["id"]).execute()
+
+    if eligible_remaining == 0 and active_calling == 0:
+        logger.info(f"Campaign {campaign_id} has exhausted all contacts. Completing.")
+        client.table("campaigns").update({"status": "COMPLETED", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", campaign_id).execute()
+        log_campaign_activity(campaign_id, "CAMPAIGN_COMPLETED", "No remaining eligible contacts.")
 
 async def campaign_orchestrator_loop():
     logger.info("Starting background campaign orchestrator loop")

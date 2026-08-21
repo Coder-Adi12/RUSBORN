@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -10,6 +11,8 @@ from api.routers import appointments, campaigns, dashboard, knowledge, webhooks
 from config import settings
 from db.client import get_supabase_client
 from services.campaign_orchestrator import campaign_orchestrator_loop
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -75,4 +78,9 @@ async def db_health_check():
                 raise
         return {"status": "ok", "db_connected": True}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection failed: {e!s}") from e
+        # This endpoint is unauthenticated; do not leak the underlying error
+        # (which can contain connection strings or host details) to the caller.
+        logger.error("Database health check failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Database connection failed"
+        ) from e

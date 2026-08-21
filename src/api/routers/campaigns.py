@@ -3,6 +3,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from api.auth import require_dashboard_session
 from services.audience_service import (
@@ -52,6 +53,35 @@ class CampaignUpdateRequest(BaseModel):
 
 class AddContactsRequest(BaseModel):
     customer_ids: List[str]
+
+
+# Cap uploaded audience files so a single request cannot exhaust memory. The
+# whole file is decoded into a string in-process, so this bounds both the
+# request body and the downstream CSV parsing work.
+_MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MiB
+
+
+async def _read_upload_capped(file: UploadFile) -> bytes:
+    """Read an UploadFile fully, rejecting anything over the size cap.
+
+    Reads in chunks so an oversized file is rejected without buffering the
+    entire body first.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Uploaded file exceeds the 5 MB limit.",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 
 @router.get("")
 def api_list_campaigns():
@@ -126,14 +156,23 @@ def api_campaign_activity(campaign_id: str):
 
 @router.post("/{campaign_id}/audience/upload")
 async def api_audience_upload(campaign_id: str, file: UploadFile = File(...)):
-    content = await file.read()
-    return parse_csv_preview(content)
+    content = await _read_upload_capped(file)
+    # parse_csv_preview is synchronous/CPU-bound; keep it off the event loop.
+    return await run_in_threadpool(parse_csv_preview, content)
 
 @router.post("/{campaign_id}/audience/import")
 async def api_audience_import(campaign_id: str, file: UploadFile = File(...), mapping: str = Form(...)):
-    content = await file.read()
-    mapping_dict = json.loads(mapping)
-    return process_audience_import(campaign_id, content, mapping_dict)
+    content = await _read_upload_capped(file)
+    try:
+        mapping_dict = json.loads(mapping)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid mapping JSON.")
+    if not isinstance(mapping_dict, dict):
+        raise HTTPException(status_code=400, detail="Mapping must be a JSON object.")
+    # process_audience_import does blocking DB I/O per row; run in a thread.
+    return await run_in_threadpool(
+        process_audience_import, campaign_id, content, mapping_dict
+    )
 
 @router.get("/{campaign_id}/audience")
 def api_get_audience(campaign_id: str):

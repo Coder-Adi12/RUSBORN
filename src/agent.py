@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from typing import Optional
 
 from livekit.agents import (
     Agent,
@@ -18,15 +19,27 @@ from agent_core.context import CallContext, build_call_context
 from agent_core.prompts import build_system_prompt
 from agent_core.summary import on_session_end
 from agent_core.tools import AppointmentTools
+from services.agent_settings_service import get_appointment_settings
 from services.call_service import create_or_reuse_call
 
 logger = logging.getLogger("agent-rusborn-voice-agent")
 
 
 class DefaultAgent(Agent):
-    def __init__(self, call_context: CallContext) -> None:
+    def __init__(
+        self,
+        call_context: CallContext,
+        agent_settings: Optional[dict] = None,
+    ) -> None:
+        # agent_settings (resolved appointment configuration) makes the spoken
+        # prompt reflect the dashboard-editable working hours / duration / days.
+        prompt_timezone = (agent_settings or {}).get("timezone", "Asia/Kolkata")
         super().__init__(
-            instructions=build_system_prompt(call_context),
+            instructions=build_system_prompt(
+                call_context,
+                timezone=prompt_timezone,
+                agent_settings=agent_settings,
+            ),
             tools=[
                 AppointmentTools(call_context),
                 EndCallTool(
@@ -179,8 +192,17 @@ async def entrypoint(ctx: JobContext):
             logger.info(f"[TURN LATENCY] TTS TTFA: {getattr(metrics, 'ttfb', 0):.2f}s")
             logger.info(f"[TURN LATENCY] TTS generation duration: {getattr(metrics, 'duration', 0):.2f}s")
 
+    # Resolve editable appointment settings (working hours / duration / days /
+    # timezone) so the agent speaks the correct booking window. Falls back to
+    # env-var defaults on any error — never blocks call setup.
+    try:
+        agent_settings = get_appointment_settings()
+    except Exception as e:
+        logger.warning(f"Failed to load agent settings, using defaults: {e!s}")
+        agent_settings = None
+
     await session.start(
-        agent=DefaultAgent(call_context),
+        agent=DefaultAgent(call_context, agent_settings=agent_settings),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(

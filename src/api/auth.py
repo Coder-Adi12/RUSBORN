@@ -36,7 +36,18 @@ def require_internal_secret(request: Request) -> None:
     """
     secret = settings.internal_api_secret
     if not secret:
-        # If no secret is configured (dev convenience), skip enforcement.
+        # Fail CLOSED in production/staging: an unconfigured secret must never
+        # silently expose these routes. Only skip enforcement in dev/test.
+        if settings.environment in ("production", "staging"):
+            logger.error(
+                "INTERNAL_API_SECRET is not configured in a %s environment; "
+                "rejecting internal request.",
+                settings.environment,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Server auth is not configured",
+            )
         return
 
     provided = request.headers.get(INTERNAL_SECRET_HEADER, "")

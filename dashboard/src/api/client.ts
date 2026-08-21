@@ -138,6 +138,18 @@ export interface SystemHealth {
   api: { status: string; message: string };
 }
 
+export interface AgentSettings {
+  appointment_timezone: string;
+  appointment_duration_minutes: number;
+  appointment_working_days: number[];
+  appointment_start_time: string;
+  appointment_end_time: string;
+  updated_at: string | null;
+}
+
+// Partial payload accepted by the PUT /agent-settings endpoint.
+export type AgentSettingsUpdate = Partial<Omit<AgentSettings, 'updated_at'>>;
+
 // ── API Functions ──
 
 export const api = {
@@ -202,6 +214,14 @@ export const api = {
   getAnalytics: (days = 30) => fetchApi<AnalyticsData>(`/analytics?days=${days}`),
 
   getHealth: () => fetchApi<SystemHealth>('/health'),
+
+  getAgentSettings: () => fetchApi<AgentSettings>('/agent-settings'),
+
+  updateAgentSettings: (data: AgentSettingsUpdate) =>
+    fetchApi<AgentSettings>('/agent-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
   login: async (credentials: Record<string, string>) => {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
@@ -297,6 +317,7 @@ export const campaignsApi = {
     const res = await fetch(`${CAMPAIGN_API_BASE}/${id}/audience/upload`, {
       method: 'POST',
       body: formData,
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Upload failed');
     return res.json();
@@ -308,6 +329,7 @@ export const campaignsApi = {
     const res = await fetch(`${CAMPAIGN_API_BASE}/${id}/audience/import`, {
       method: 'POST',
       body: formData,
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Import failed');
     return res.json();

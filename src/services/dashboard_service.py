@@ -576,7 +576,7 @@ def get_system_health() -> dict[str, Any]:
         client = get_supabase_client()
         client.rpc("search_knowledge_v1", {
             "search_query": "test",
-            "filter_category": None,
+            "category_filter": None,
             "max_limit": 1,
         }).execute()
         health["knowledge_search"] = {"status": "healthy", "message": "RPC available"}

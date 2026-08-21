@@ -54,22 +54,20 @@ def parse_csv_preview(file_bytes: bytes) -> Dict[str, Any]:
     reader = csv.DictReader(io.StringIO(text))
 
     if not reader.fieldnames:
-        return {"headers": [], "preview": [], "mapping": {}}
+        return {"headers": [], "preview": [], "mapping": {}, "total_rows": 0}
 
     headers = list(reader.fieldnames)
     mapping = guess_column_mapping(headers)
 
-    preview = []
-    for i, row in enumerate(reader):
-        if i >= 20:
-            break
-        preview.append(row)
+    # Materialize once so the preview slice and the total count stay consistent.
+    # The upload size is capped at the router, so this is bounded.
+    rows = list(reader)
 
     return {
         "headers": headers,
         "mapping": mapping,
-        "preview": preview,
-        "total_rows": len(preview) + sum(1 for _ in reader)
+        "preview": rows[:20],
+        "total_rows": len(rows),
     }
 
 def process_audience_import(campaign_id: str, file_bytes: bytes, mapping: Dict[str, str]) -> Dict[str, Any]:

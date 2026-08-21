@@ -7,6 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import require_dashboard_session
+from services.agent_settings_service import (
+    get_agent_settings,
+    update_agent_settings,
+)
 from services.dashboard_service import (
     create_knowledge_record,
     get_analytics,
@@ -210,3 +214,45 @@ async def analytics(
 @router.get("/health")
 async def system_health() -> dict[str, Any]:
     return get_system_health()
+
+
+# ── Agent Settings (editable appointment configuration) ──────────────────────
+
+
+class AgentSettingsUpdateRequest(BaseModel):
+    appointment_timezone: Optional[str] = None
+    appointment_duration_minutes: Optional[int] = None
+    appointment_working_days: Optional[list[int]] = None
+    appointment_start_time: Optional[str] = None
+    appointment_end_time: Optional[str] = None
+
+
+@router.get("/agent-settings")
+async def agent_settings() -> dict[str, Any]:
+    """Return the current (resolved) appointment configuration for display."""
+    return get_agent_settings()
+
+
+@router.put("/agent-settings")
+async def update_agent_settings_endpoint(
+    req: AgentSettingsUpdateRequest,
+    user: str = Depends(require_dashboard_session),
+) -> dict[str, Any]:
+    """Validate and persist an edit to the appointment configuration.
+
+    Both the backend (availability/booking enforcement) and the voice agent
+    (spoken business hours) read from the same resolved settings, so a change
+    here takes effect everywhere on the next resolution.
+    """
+    payload = req.model_dump(exclude_none=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    try:
+        return update_agent_settings(payload, updated_by=user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"Failed to update agent settings: {e!s}")
+        raise HTTPException(
+            status_code=500, detail="Failed to update agent settings"
+        ) from e

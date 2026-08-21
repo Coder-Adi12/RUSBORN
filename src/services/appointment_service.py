@@ -3,8 +3,13 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from config import settings
 from db.client import get_supabase_client
+from services.agent_settings_service import get_appointment_settings
+
+# Statuses that physically occupy a slot. Must stay in sync with the partial
+# unique index idx_appointments_active_slot (see migration
+# 20260821090000_include_rescheduled_in_active_slot.sql).
+_ACTIVE_SLOT_STATUSES = ["booked", "confirmed", "rescheduled"]
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +64,7 @@ def parse_time(time_str: str | time) -> time:
     raise ValueError(f"Incorrect time format: {time_str}")
 
 def _get_working_days() -> list[int]:
-    return [int(d.strip()) for d in settings.appointment_working_days.split(",")]
+    return list(get_appointment_settings()["working_days"])
 
 def get_slot_end_time(start_t: time, duration_mins: int) -> time:
     dummy_date = datetime.combine(datetime.today(), start_t)
@@ -67,19 +72,20 @@ def get_slot_end_time(start_t: time, duration_mins: int) -> time:
 
 def get_available_slots_for_day(target_date: date, tz_name: str) -> list[tuple[time, time]]:
     """Returns a list of all theoretically available slots for a given day in the given timezone, based on config."""
+    cfg = get_appointment_settings()
     try:
         tz = ZoneInfo(tz_name)
     except Exception:
-        tz = ZoneInfo(settings.appointment_timezone)
+        tz = ZoneInfo(cfg["timezone"])
 
-    working_days = _get_working_days()
+    working_days = list(cfg["working_days"])
     # ISO weekday(): Monday is 1, Sunday is 7.
     if target_date.isoweekday() not in working_days:
         return []
 
-    start_time = parse_time(settings.appointment_start_time)
-    end_time = parse_time(settings.appointment_end_time)
-    duration = settings.appointment_duration_minutes
+    start_time = parse_time(cfg["start_time"])
+    end_time = parse_time(cfg["end_time"])
+    duration = cfg["duration_minutes"]
 
     slots = []
     current_dt = datetime.combine(target_date, start_time).replace(tzinfo=tz)
@@ -106,26 +112,27 @@ def check_availability(
     except ValueError:
         return {"available": False, "alternatives": []}
 
+    cfg = get_appointment_settings()
     try:
         ZoneInfo(timezone_str)
     except Exception:
-        timezone_str = settings.appointment_timezone
+        timezone_str = cfg["timezone"]
 
     # Get all theoretical slots
     all_slots = get_available_slots_for_day(req_date, timezone_str)
-    req_end_time = get_slot_end_time(req_time, settings.appointment_duration_minutes)
+    req_end_time = get_slot_end_time(req_time, cfg["duration_minutes"])
 
     # Check if the requested slot is even valid theoretically
     if (req_time, req_end_time) not in all_slots:
         client = get_supabase_client()
-        resp = client.table("appointments").select("start_time").eq("appointment_date", appointment_date).in_("status", ["booked", "confirmed"]).execute()
+        resp = client.table("appointments").select("start_time").eq("appointment_date", appointment_date).in_("status", _ACTIVE_SLOT_STATUSES).execute()
         booked_times = [parse_time(row["start_time"]) for row in resp.data] if resp.data else []
         alternatives = [{"start_time": s.strftime("%H:%M"), "end_time": e.strftime("%H:%M")} for s, e in all_slots if s not in booked_times]
         return {"available": False, "alternatives": alternatives[:3]}
 
     # Check DB for active bookings on that day
     client = get_supabase_client()
-    resp = client.table("appointments").select("start_time").eq("appointment_date", appointment_date).in_("status", ["booked", "confirmed"]).execute()
+    resp = client.table("appointments").select("start_time").eq("appointment_date", appointment_date).in_("status", _ACTIVE_SLOT_STATUSES).execute()
     booked_times = [parse_time(row["start_time"]) for row in resp.data] if resp.data else []
 
     if req_time in booked_times:
@@ -135,7 +142,7 @@ def check_availability(
     return {
         "available": True,
         "date": appointment_date,
-        "start_time": requested_start_time,
+        "start_time": req_time.strftime("%H:%M"),
         "end_time": req_end_time.strftime("%H:%M"),
         "timezone": timezone_str
     }
@@ -163,7 +170,7 @@ def book_appointment(
             "customer_id": customer_id,
             "call_id": call_id,
             "appointment_date": appointment_date,
-            "start_time": start_time,
+            "start_time": avail["start_time"],
             "end_time": avail["end_time"],
             "timezone": timezone_str,
             "status": "booked",
@@ -278,7 +285,7 @@ def reschedule_appointment(
     # 9, 10, 11, 12. Update the existing appointment
     update_data = {
         "appointment_date": new_date,
-        "start_time": new_start_time,
+        "start_time": parse_time(new_start_time).strftime("%H:%M"),
         "end_time": avail["end_time"],
         "timezone": timezone_str,
         "status": "rescheduled",

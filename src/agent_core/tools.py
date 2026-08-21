@@ -18,6 +18,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# Shared request timeout. Passing a bare float to aiohttp is deprecated; a
+# ClientTimeout is the supported form and bounds the whole request.
+_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=10.0)
+
 
 # Global session to optimize latency (reuse TLS connections)
 _http_session: Optional[aiohttp.ClientSession] = None
@@ -29,6 +33,15 @@ def _get_http_session() -> aiohttp.ClientSession:
             headers={"X-Internal-Secret": settings.internal_api_secret}
         )
     return _http_session
+
+
+async def close_http_session() -> None:
+    """Close the shared aiohttp session. Call on agent process shutdown to
+    avoid an 'Unclosed client session' warning. Safe to call repeatedly."""
+    global _http_session
+    if _http_session is not None and not _http_session.closed:
+        await _http_session.close()
+    _http_session = None
 
 
 class AppointmentTools(llm.Toolset):
@@ -49,7 +62,7 @@ class AppointmentTools(llm.Toolset):
             session = _get_http_session()
             url = f"{self.backend_url}/api/v1/appointments{endpoint}"
             async with session.post(
-                url, json=payload, timeout=10.0
+                url, json=payload, timeout=_REQUEST_TIMEOUT
             ) as response:
                 response_start = time.monotonic()
                 logger.info(f"[TOOL] {endpoint} backend response start (latency: {response_start - start_time:.3f}s)")
@@ -244,7 +257,7 @@ times like '3 PM' to '15:00'.
             session = _get_http_session()
             url = f"{self.backend_url}/api/v1/knowledge/search"
             params = {"q": query}
-            async with session.get(url, params=params, timeout=10.0) as response:
+            async with session.get(url, params=params, timeout=_REQUEST_TIMEOUT) as response:
                 response_start = time.monotonic()
                 logger.info(f"[TOOL] search_knowledge backend response start (latency: {response_start - start_time:.3f}s)")
                 if response.status >= 500:
