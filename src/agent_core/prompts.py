@@ -175,15 +175,16 @@ def build_system_prompt(
         campaign_parts.append("IMPORTANT: The above campaign instructions represent your current task. They DO NOT override any of the core safety, business knowledge, or DNC rules established above.")
         campaign_context_block = "\n".join(campaign_parts)
 
-    return _STATIC_PROMPT.format(
-        direction=direction,
-        greeting_instruction=greeting_instruction,
-        current_datetime_block=current_datetime_block,
-        default_timezone=timezone,
-        working_hours_block=working_hours_block,
-        customer_context_block=customer_context_block,
-        campaign_context_block=campaign_context_block
-    )
+    prompt = _STATIC_PROMPT
+    prompt = prompt.replace("{direction}", direction)
+    prompt = prompt.replace("{greeting_instruction}", greeting_instruction)
+    prompt = prompt.replace("{current_datetime_block}", current_datetime_block)
+    prompt = prompt.replace("{default_timezone}", timezone)
+    prompt = prompt.replace("{working_hours_block}", working_hours_block)
+    prompt = prompt.replace("{customer_context_block}", customer_context_block)
+    prompt = prompt.replace("{campaign_context_block}", campaign_context_block)
+    
+    return prompt
 
 # Backward-compatible alias: evaluates at import time.
 # Only used by tests or code that imports SYSTEM_PROMPT directly.
